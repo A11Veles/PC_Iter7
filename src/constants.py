@@ -41,6 +41,18 @@ CLEANED_FULL_DATASET_DATA_PATH = DATA_PATH / "cleaned_full_dataset.csv"
 
 GPC_PATH = DATA_PATH / "GPCMay25.xlsx"
 
+MWPD_DATA_SET_TRAIN = DATA_PATH / "train.json"
+
+MWPD_DATA_SET_VAL = DATA_PATH / "validation.json"
+
+MWPD_DATA_SET_TEST = DATA_PATH / "task2_testset_with_labels.json"
+
+MWPD_FULL_DATASET = DATA_PATH / "MWPD_FULL.csv"
+
+MWPD_FULL_DATASET_COMBINED = DATA_PATH / "combined_data.csv"
+
+MWPD_FULL_DATASET_COMBINED_CLEANED = DATA_PATH / "combined_data_claned.csv"
+
 CLEANED_GPC_PATH = DATA_PATH / "cleaned_gpc.csv"
 
 PRODUCT_TEST_EMBEDDINGS_PATH = DATA_PATH / "product_test_embeddings.csv"

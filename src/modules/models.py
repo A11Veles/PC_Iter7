@@ -1,15 +1,14 @@
 import torch
-import pickle
 from torch import Tensor
-from tqdm.auto import tqdm
 import torch.nn.functional as F 
-from sklearn.cluster import KMeans
 from sklearn.dummy import DummyClassifier
 from sentence_transformers import SentenceTransformer
 from transformers import MarianMTModel, MarianTokenizer
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from sklearn.linear_model import LogisticRegression
+from transformers import BitsAndBytesConfig
+from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
 from scipy.sparse import diags
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import normalize
@@ -20,6 +19,7 @@ import pandas as pd
 import numpy as np
 import requests
 import time
+import joblib
 
 @dataclass
 class OpusTranslationModelConfig:
@@ -820,6 +820,142 @@ class EnsembleClassifier:
             ensemble_results.append(result)
         
         return pd.DataFrame(ensemble_results)
+
+
+
+@dataclass
+class LogisticRegressionConfig:
+    max_iter: int = 1000
+    solver: str = "lbfgs"
+    random_state: int = 42
+    C: float = 1.0  
+    n_jobs: int = -1
+
+
+class WeightedLogisticRegressionClassifier:
+    def __init__(self, config: LogisticRegressionConfig, 
+                 special_class_weights: Optional[Dict[str, float]] = None,
+                 default_weight: float = 1.0,
+                 use_balanced: bool = False):
+        self.config = config
+        self.special_class_weights = special_class_weights or {}
+        self.default_weight = default_weight
+        self.use_balanced = use_balanced
+        self.class_weight_dict = None
+        self.model = None
+    
+    
+    def _create_class_weights(self, y):
+        if self.use_balanced:
+            return "balanced"
+        
+        unique_classes = np.unique(y)
+        weights = {}
+        
+        for cls in unique_classes:
+            cls_lower = str(cls).lower().strip()
+            special_weight = None
+            
+            for special_cls, weight in self.special_class_weights.items():
+                if special_cls.lower() in cls_lower or cls_lower in special_cls.lower():
+                    special_weight = weight
+                    break
+            
+            weights[cls] = special_weight if special_weight is not None else self.default_weight
+        
+        return weights
+    
+    def fit(self, X, y):
+        self.class_weight_dict = self._create_class_weights(y)
+        
+        self.model = LogisticRegression(
+            max_iter=self.config.max_iter,
+            solver=self.config.solver,
+            random_state=self.config.random_state,
+            C=self.config.C,
+            n_jobs=self.config.n_jobs,
+            class_weight=self.class_weight_dict
+        )
+        
+        self.model.fit(X, y)
+        return self
+    
+    def predict(self, X):
+        if self.model is None:
+            raise ValueError("Model must be fitted before prediction")
+        return self.model.predict(X)
+    
+    def predict_proba(self, X):
+        if self.model is None:
+            raise ValueError("Model must be fitted before prediction")
+        return self.model.predict_proba(X)
+    
+    def get_model(self):
+        return self.model
+    
+
+
+
+@dataclass
+class TfidfClassifierConfig:
+    analyzer: str = "char_wb"
+    ngram_range: tuple = (3, 5)
+    min_df: int = 2
+    max_df: float = 0.9
+    lowercase: bool = True
+    sublinear_tf: bool = True
+    smooth_idf: bool = True
+    norm: str = "l2"
+    strip_accents: Optional[str] = None
+    stop_words: Optional[set] = None
+    food_weight: float = 5.0
+
+
+class TfidfClassifier:
+    def __init__(self, config: Optional[TfidfClassifierConfig] = None):
+        self.vectorizer = TfidfVectorizer(
+            analyzer=config.analyzer,
+            ngram_range=config.ngram_range,
+            min_df=config.min_df,
+            max_df=config.max_df,
+            lowercase=config.lowercase,
+            sublinear_tf=config.sublinear_tf,
+            smooth_idf=config.smooth_idf,
+            norm=config.norm,
+            strip_accents=config.strip_accents,
+            stop_words=config.stop_words,
+            token_pattern=None if config.analyzer in ("char", "char_wb") else r"(?u)\b\w+\b",
+        )
+        self.config = config
+        self.pipeline = None
+
+    def fit(self, X_train, y_train):
+        unique_classes = set(y_train)
+        class_weights = {cls: (self.config.food_weight if "food beverage" in cls else 1.0)
+                         for cls in unique_classes}
+
+        self.pipeline = Pipeline(
+            [
+                ("vectorizer_tfidf", self.vectorizer),
+                ("random_forest", BalancedRandomForestClassifier(
+                    n_estimators=300,
+                    random_state=42,
+                    replacement=True,
+                    sampling_strategy="all",
+                    class_weight=class_weights
+                )),
+            ]
+        )
+        self.pipeline.fit(X_train, y_train)
+
+    def predict(self, X):
+        return self.pipeline.predict(X)
+
+    def save(self, path: str):
+        joblib.dump(self.pipeline, path)
+
+    def load(self, path: str):
+        self.pipeline = joblib.load(path)
 
 
 @dataclass
