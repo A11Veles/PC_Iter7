@@ -105,7 +105,7 @@ def load_embedding_model(config_path: str):
 
 def load_tfidf_random_forest():
     config = TfidfClassifierConfig()
-    model = TfidfClassifier(config)
+    model = TfidfClassifier(config) 
 
     return model
 

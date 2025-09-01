@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import MarianMTModel, MarianTokenizer
 from sklearn.linear_model import LogisticRegression
 from transformers import BitsAndBytesConfig
-from imblearn.ensemble import BalancedRandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.pipeline import Pipeline
 from scipy.sparse import diags
@@ -894,8 +894,6 @@ class WeightedLogisticRegressionClassifier:
         return self.model
     
 
-
-
 @dataclass
 class TfidfClassifierConfig:
     analyzer: str = "char_wb"
@@ -912,7 +910,8 @@ class TfidfClassifierConfig:
 
 
 class TfidfClassifier:
-    def __init__(self, config: Optional[TfidfClassifierConfig] = None):
+
+    def __init__(self, config: Optional[TfidfClassifierConfig]):
         self.vectorizer = TfidfVectorizer(
             analyzer=config.analyzer,
             ngram_range=config.ngram_range,
@@ -924,38 +923,22 @@ class TfidfClassifier:
             norm=config.norm,
             strip_accents=config.strip_accents,
             stop_words=config.stop_words,
-            token_pattern=None if config.analyzer in ("char", "char_wb") else r"(?u)\b\w+\b",
+            token_pattern=None if config.analyzer in ("char", "char_wb") else r'(?u)\b\w+\b',
         )
-        self.config = config
-        self.pipeline = None
+
+        self.clf = None
 
     def fit(self, X_train, y_train):
-        unique_classes = set(y_train)
-        class_weights = {cls: (self.config.food_weight if "food beverage" in cls else 1.0)
-                         for cls in unique_classes}
-
-        self.pipeline = Pipeline(
+        self.clf = Pipeline(
             [
                 ("vectorizer_tfidf", self.vectorizer),
-                ("random_forest", BalancedRandomForestClassifier(
-                    n_estimators=300,
-                    random_state=42,
-                    replacement=True,
-                    sampling_strategy="all",
-                    class_weight=class_weights
-                )),
+                ("random_forest", RandomForestClassifier())
             ]
         )
-        self.pipeline.fit(X_train, y_train)
+        self.clf.fit(X_train, y_train)
 
-    def predict(self, X):
-        return self.pipeline.predict(X)
-
-    def save(self, path: str):
-        joblib.dump(self.pipeline, path)
-
-    def load(self, path: str):
-        self.pipeline = joblib.load(path)
+    def predict(self, x):
+        return self.clf.predict(x)
 
 
 @dataclass

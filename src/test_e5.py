@@ -1,20 +1,20 @@
+
 import pandas as pd
 import numpy as np
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline
 import re, warnings
 
-from utils import load_logistic_regressiong
-warnings.filterwarnings('ignore')
+from constants import E5_LARGE_INSTRUCT_CONFIG_PATH
+from utils import load_embedding_model
 
 hierarchy = ['segment', 'family', 'class', 'brick']
+warnings.filterwarnings('ignore')
 
 def preprocess_keep_symbols(text):
     if pd.isna(text): return ""
     text = str(text).lower()
-    text = re.sub(r'[^a-z0-9\s\+\-/\.]', ' ', text)
+    text = re.sub(r'[^a-z0-9\s\+\-\.\/]', ' ', text)
     return ' '.join(text.split())
 
 def load_data():
@@ -28,67 +28,51 @@ def split_data(df, seed=42):
         return train_test_split(df, test_size=0.2, random_state=seed, stratify=df['segment'])
     return train_test_split(df, test_size=0.2, random_state=seed)
 
-def create_logistic_pipeline():
-    lr_model = load_logistic_regressiong()
-    vectorizer = TfidfVectorizer(
-        max_features=15000,
-        ngram_range=(1,2),
-        min_df=2,
-        max_df=0.95,
-        stop_words='english',
-        sublinear_tf=True,
-        norm='l2'
-    )
-    pipeline = Pipeline([
-        ('tfidf', vectorizer),
-        ('lr', lr_model)
-    ])
-    return pipeline
-
-def train_per_level(X_train, y_train):
+def train_per_level(y_train, embedding_model):
     models = {}
-    pipeline = create_logistic_pipeline()
-    
+
     for lvl in hierarchy:
-        y_level = y_train[lvl]
-        if len(np.unique(y_level)) < 2:
-            models[lvl] = ('const', y_level.iloc[0])
-        else:
-            clf = create_logistic_pipeline()
-            clf.fit(X_train, y_level)
-            models[lvl] = ('lr', clf)
+        unique_labels = y_train[lvl].unique()
+        label_embeddings = embedding_model.get_embeddings(list(unique_labels))
+        models[lvl] = {'labels': unique_labels, 'embeddings': label_embeddings}
     return models
 
-def predict_levels(models, X):
+def predict_levels(models, X, embedding_model):
     out = {}
+    X_embeddings = embedding_model.get_embeddings(X.tolist())
+
     for lvl in hierarchy:
-        kind, obj = models[lvl]
-        if kind == 'const':
-            out[lvl] = np.full(X.shape[0], obj)
-        else:
-            out[lvl] = obj.predict(X)
+        labels = models[lvl]['labels']
+        label_embeddings = models[lvl]['embeddings']
+        
+        scores = embedding_model.calculate_scores(X_embeddings, label_embeddings)
+ 
+        predicted_indices = scores.argmax(axis=1)
+
+        predicted_labels = [labels[idx] for idx in predicted_indices]
+        out[lvl] = predicted_labels
     return pd.DataFrame(out)
 
 def eval_weighted_f1(y_true_df, y_pred_df):
     return float(np.mean([f1_score(y_true_df[l], y_pred_df[l], average='weighted', zero_division=0) for l in hierarchy]))
 
 def main():
+    embedding_model = load_embedding_model(E5_LARGE_INSTRUCT_CONFIG_PATH)
+
     train_df, test1_df, test2_df = load_data()
 
     train_df = train_df.copy()
     train_df['processed_name'] = train_df['product_name'].apply(preprocess_keep_symbols)
     tr, va = split_data(train_df, seed=42)
 
-    pipeline = create_logistic_pipeline()
-    X_tr = tr['processed_name']
     X_va = va['processed_name']
 
     y_tr = tr[hierarchy].copy()
     y_va = va[hierarchy].copy()
 
-    models = train_per_level(X_tr, y_tr)
+    models = train_per_level(y_tr, embedding_model)
 
-    val_preds = predict_levels(models, X_va)
+    val_preds = predict_levels(models, X_va, embedding_model)
     val_f1 = eval_weighted_f1(y_va, val_preds)
 
     t1 = test1_df.copy()
@@ -96,7 +80,7 @@ def main():
     X_t1 = t1['processed_name']
     y_t1 = t1[['SegmentTitle','FamilyTitle','ClassTitle','BrickTitle']].copy()
     y_t1.columns = hierarchy
-    p1 = predict_levels(models, X_t1)
+    p1 = predict_levels(models, X_t1, embedding_model)
     test1_f1 = eval_weighted_f1(y_t1, p1)
 
     t2 = test2_df.copy()
@@ -104,11 +88,11 @@ def main():
     X_t2 = t2['processed_name']
     y_t2 = t2[['predicted_segment','predicted_family','predicted_class','predicted_brick']].copy()
     y_t2.columns = hierarchy
-    p2 = predict_levels(models, X_t2)
+    p2 = predict_levels(models, X_t2, embedding_model)
     test2_f1 = eval_weighted_f1(y_t2, p2)
 
     avg_f1 = (test1_f1 + test2_f1) / 2.0
-    print("\nRESULTS (Logistic Regression)")
+    print("\\nRESULTS (E5 Model)")
     print(f"Val F1:   {val_f1:.4f}")
     print(f"Test1 F1: {test1_f1:.4f}")
     print(f"Test2 F1: {test2_f1:.4f}")
@@ -116,3 +100,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
