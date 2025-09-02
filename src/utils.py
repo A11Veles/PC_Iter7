@@ -9,8 +9,8 @@ import json
 from typing import List
 
 
-from constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH
-from modules.models import (
+from src.constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH
+from src.modules.models import (
     SentenceEmbeddingModel, 
     SentenceEmbeddingConfig,
     OpusTranslationModel,

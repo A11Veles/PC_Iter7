@@ -119,7 +119,6 @@ class SentenceEmbeddingModel:
         query_embeddings = self.get_embeddings(queries, "classification")
         document_embeddings = self.get_embeddings(documents, "classification")
         return self.calculate_scores(query_embeddings, document_embeddings)
-    
 
 @dataclass
 class LLMModelConfig:
@@ -939,6 +938,18 @@ class TfidfClassifier:
 
     def predict(self, x):
         return self.clf.predict(x)
+    
+    def predict_topk(self, product_name, k=3):
+
+        probabilities = self.clf.predict_proba([product_name])[0]
+
+        classes = self.clf.classes_
+
+        prob_class_pairs = list(zip(probabilities, classes))
+
+        prob_class_pairs.sort(key=lambda x: x[0], reverse=True)
+
+        return [class_label for prob, class_label in prob_class_pairs[:k]]
 
 
 @dataclass
