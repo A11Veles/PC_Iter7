@@ -27,9 +27,15 @@ JOINED_PRODUCTS_DATASET = DATA_PATH / "joined_products_dataset.csv"
 
 JOINED_CLASSES_DATASET = DATA_PATH / "joined_classes_dataset.csv"
 
+MANUALLY_LABELLED_DATASET = DATA_PATH / "validated_actually_labeled_test_dataset.csv"
+
+MANUALLY_LABELLED_DATASET_2 = DATA_PATH / "validated_actually_labeled_test_dataset_2.csv"
+
 TRAIN_VAL_DATA_PATH = DATA_PATH / "train_val.csv"
 
 TRAIN_CLEANED_DATA_PATH = DATA_PATH / "train_cleaned.csv"
+
+TRANSLATED_TEST_DATASET = DATA_PATH / "translated_test_dataset.csv"
 
 VALIDATION_DATA_PATH = DATA_PATH / "validation.csv"
 
