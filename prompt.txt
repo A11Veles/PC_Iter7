@@ -1,0 +1,50 @@
+**System**
+You are a precise product-to-label classifier. You must classify each product into exactly one category from the provided list. Think carefully but output **only the label name**—nothing else.
+
+**User**
+Task: Assign the best label to the product from the allowed list.
+
+**Rules:**
+
+* Input will be the **product title combined with its brand** 
+* Pick **exactly one** label name from the list, copied verbatim.
+* Do **not** create new labels, add words, or explain.
+* Ignore irrelevant details such as size, color, quantity, promotional words, or seasonal tags.
+* If more than one label seems equally valid (rare), return the **top 3 most fitting labels**, ranked best to worst.
+* Output must be the label name(s) only.
+
+**Product:**
+
+```
+{{Product_Name}} 
+```
+
+**Allowed labels:**
+
+```
+{{LABEL_1}}
+{{LABEL_2}}
+{{LABEL_3}}
+{{LABEL_4}}
+{{LABEL_5}}
+....
+```
+
+**Output (strict format):**
+
+* Normally:
+
+```
+{{CHOSEN_LABEL}}
+```
+
+* If tie:
+
+```
+{{LABEL_1}}
+{{LABEL_2}}
+{{LABEL_3}}
+```
+---
+
+
