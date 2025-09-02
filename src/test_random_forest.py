@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 import re, warnings
 
@@ -49,8 +49,8 @@ def predict_levels(models, X):
             out[lvl] = obj.predict(X)
     return pd.DataFrame(out)
 
-def eval_weighted_f1(y_true_df, y_pred_df):
-    return float(np.mean([f1_score(y_true_df[l], y_pred_df[l], average='weighted', zero_division=0) for l in hierarchy]))
+def eval_accuracy(y_true_df, y_pred_df):
+    return {l: accuracy_score(y_true_df[l], y_pred_df[l]) for l in hierarchy}
 
 def main():
     train_df, test1_df, test2_df = load_data()
@@ -68,7 +68,7 @@ def main():
     models = train_per_level(X_tr, y_tr)
 
     val_preds = predict_levels(models, X_va)
-    val_f1 = eval_weighted_f1(y_va, val_preds)
+    val_acc = eval_accuracy(y_va, val_preds)
 
     t1 = test1_df.copy()
     t1['processed_name'] = t1['Name'].apply(preprocess_keep_symbols)
@@ -76,7 +76,7 @@ def main():
     y_t1 = t1[['SegmentTitle','FamilyTitle','ClassTitle','BrickTitle']].copy()
     y_t1.columns = hierarchy
     p1 = predict_levels(models, X_t1)
-    test1_f1 = eval_weighted_f1(y_t1, p1)
+    test1_acc = eval_accuracy(y_t1, p1)
 
     t2 = test2_df.copy()
     t2['processed_name'] = t2['translated_name'].apply(preprocess_keep_symbols)
@@ -84,14 +84,11 @@ def main():
     y_t2 = t2[['predicted_segment','predicted_family','predicted_class','predicted_brick']].copy()
     y_t2.columns = hierarchy
     p2 = predict_levels(models, X_t2)
-    test2_f1 = eval_weighted_f1(y_t2, p2)
+    test2_acc = eval_accuracy(y_t2, p2)
 
-    avg_f1 = (test1_f1 + test2_f1) / 2.0
     print("\nRESULTS (Random Forest)")
-    print(f"Val F1:   {val_f1:.4f}")
-    print(f"Test1 F1: {test1_f1:.4f}")
-    print(f"Test2 F1: {test2_f1:.4f}")
-    print(f"Avg F1:   {avg_f1:.4f}")
+    for l in hierarchy:
+        print(f"{l.capitalize()} | Val Acc: {val_acc[l]:.4f} | Test1 Acc: {test1_acc[l]:.4f} | Test2 Acc: {test2_acc[l]:.4f}")
 
 if __name__ == "__main__":
     main()
