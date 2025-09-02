@@ -31,6 +31,14 @@ MANUALLY_LABELLED_DATASET = DATA_PATH / "validated_actually_labeled_test_dataset
 
 MANUALLY_LABELLED_DATASET_2 = DATA_PATH / "validated_actually_labeled_test_dataset_2.csv"
 
+SHOPMAINA_DATASET = DATA_PATH / "shopmania.csv"
+
+SKROUTZ_DATASET = DATA_PATH / "skroutz_aggregate.csv"
+
+PRICE_RUNNER_DATASET = DATA_PATH / "pricerunner_aggregate.csv"
+
+JIO_MART_DATASET = DATA_PATH / "jio_mart_items.csv"
+
 TRAIN_VAL_DATA_PATH = DATA_PATH / "train_val.csv"
 
 TRAIN_CLEANED_DATA_PATH = DATA_PATH / "train_cleaned.csv"
