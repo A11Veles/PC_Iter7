@@ -3,6 +3,7 @@
 data/*
 llama.cpp/*
 logs/*
+data/*
 config/.env
 matched/*
 comparisons/*
