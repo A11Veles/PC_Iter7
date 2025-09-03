@@ -39,6 +39,8 @@ PRICE_RUNNER_DATASET = DATA_PATH / "pricerunner_aggregate.csv"
 
 JIO_MART_DATASET = DATA_PATH / "jio_mart_items.csv"
 
+JIO_MART_DATASET_MAPPED = DATA_PATH / "jio_mart.txt"
+
 TRAIN_VAL_DATA_PATH = DATA_PATH / "train_val.csv"
 
 TRAIN_CLEANED_DATA_PATH = DATA_PATH / "train_cleaned.csv"
