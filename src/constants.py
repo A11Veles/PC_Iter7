@@ -75,6 +75,10 @@ MWPD_DATA_SET_TEST = DATA_PATH / "task2_testset_with_labels.json"
 
 MWPD_FULL_DATASET = DATA_PATH / "MWPD_FULL.csv"
 
+USDA_TO_CPG = DATA_PATH / "correctly_matched_mapped_gpc.csv"
+
+EXTRA_FOOD_DATA = DATA_PATH / "product_gpc_mapping.csv"
+
 MWPD_FULL_DATASET_COMBINED = DATA_PATH / "combined_data.csv"
 
 MWPD_FULL_DATASET_COMBINED_CLEANED = DATA_PATH / "combined_data_claned.csv"
