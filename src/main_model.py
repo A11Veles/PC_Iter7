@@ -218,6 +218,10 @@ def run():
             tr = tr[~tr['source'].isin(EXCLUDE_SOURCES_FOR_BRICK_TRAIN)]
         va = df_all[(df_all['split']=='val')   & (~df_all[layer].isna())]
         te = df_all[(df_all['split']=='test')  & (~df_all[layer].isna())]
+        te.to_csv("test.csv")
+
+        print(df_all[layer].value_counts(dropna=True).to_string())
+        print(df_all[layer].nunique())
 
         print(f"\n[{layer.upper()}] Train/Val/Test sizes (rows): {len(tr):,} / {len(va):,} / {len(te):,}")
 

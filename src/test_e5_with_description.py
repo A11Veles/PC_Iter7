@@ -1,0 +1,108 @@
+import pandas as pd
+import numpy as np
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+import re, warnings
+
+from constants import E5_LARGE_INSTRUCT_CONFIG_PATH, GPC_PATH
+from utils import load_embedding_model
+
+hierarchy = ['segment', 'family', 'class', 'brick']
+warnings.filterwarnings('ignore')
+
+def preprocess_keep_symbols(text):
+    if pd.isna(text): return ""
+    text = str(text).lower()
+    text = re.sub(r'[^a-z0-9\s\+\-\.\/]', ' ', text)
+    return ' '.join(text.split())
+
+def load_gpc():
+    gpc_df = pd.read_excel(GPC_PATH)
+    cols_to_keep = [
+        "SegmentTitle", "SegmentDefinition", 
+        "FamilyTitle", "FamilyDefinition", 
+        "ClassTitle", "ClassDefinition", 
+        "BrickTitle", "BrickDefinition_Includes"
+    ]
+    return gpc_df[cols_to_keep]
+
+def join_data():
+    train_df = pd.read_csv("data/correctly_matched_mapped_gpc.csv")
+    test2_df = pd.read_csv("data/validated_actually_labeled_test_dataset.csv")
+    gpc_df = load_gpc()
+
+    seg_map = gpc_df[["SegmentTitle", "SegmentDefinition"]].drop_duplicates().set_index("SegmentTitle")["SegmentDefinition"].to_dict()
+    fam_map = gpc_df[["FamilyTitle", "FamilyDefinition"]].drop_duplicates().set_index("FamilyTitle")["FamilyDefinition"].to_dict()
+    cls_map = gpc_df[["ClassTitle", "ClassDefinition"]].drop_duplicates().set_index("ClassTitle")["ClassDefinition"].to_dict()
+    brk_map = gpc_df[["BrickTitle", "BrickDefinition_Includes"]].drop_duplicates().set_index("BrickTitle")["BrickDefinition_Includes"].to_dict()
+
+    train_df["segment"] = train_df["segment"] + " - " + train_df["segment"].map(seg_map).fillna("")
+    train_df["family"] = train_df["family"] + " - " + train_df["family"].map(fam_map).fillna("")
+    train_df["class"] = train_df["class"] + " - " + train_df["class"].map(cls_map).fillna("")
+    train_df["brick"] = train_df["brick"] + " - " + train_df["brick"].map(brk_map).fillna("")
+
+    test2_df["predicted_segment"] = test2_df["predicted_segment"] + " - " + test2_df["predicted_segment"].map(seg_map).fillna("")
+    test2_df["predicted_family"] = test2_df["predicted_family"] + " - " + test2_df["predicted_family"].map(fam_map).fillna("")
+    test2_df["predicted_class"] = test2_df["predicted_class"] + " - " + test2_df["predicted_class"].map(cls_map).fillna("")
+    test2_df["predicted_brick"] = test2_df["predicted_brick"] + " - " + test2_df["predicted_brick"].map(brk_map).fillna("")
+
+    return train_df, test2_df
+
+def split_data(df, seed=42):
+    if 'segment' in df.columns:
+        return train_test_split(df, test_size=0.2, random_state=seed, stratify=df['segment'])
+    return train_test_split(df, test_size=0.2, random_state=seed)
+
+def train_per_level(y_train, embedding_model):
+    models = {}
+    for lvl in hierarchy:
+        unique_labels = y_train[lvl].unique()
+        label_embeddings = embedding_model.get_embeddings(list(unique_labels))
+        models[lvl] = {'labels': unique_labels, 'embeddings': label_embeddings}
+    return models
+
+def predict_levels(models, X, embedding_model):
+    out = {}
+    X_embeddings = embedding_model.get_embeddings(X.tolist())
+    for lvl in hierarchy:
+        labels = models[lvl]['labels']
+        label_embeddings = models[lvl]['embeddings']
+        scores = embedding_model.calculate_scores(X_embeddings, label_embeddings)
+        predicted_indices = scores.argmax(axis=1)
+        predicted_labels = [labels[idx] for idx in predicted_indices]
+        out[lvl] = predicted_labels
+    return pd.DataFrame(out)
+
+def eval_accuracy(y_true_df, y_pred_df):
+    return {l: accuracy_score(y_true_df[l], y_pred_df[l]) for l in hierarchy}
+
+def main():
+    train_df, test2_df = join_data()
+    train_df['processed_name'] = train_df['product_name'].apply(preprocess_keep_symbols)
+    tr, va = split_data(train_df, seed=42)
+
+    X_va = va['processed_name']
+    y_tr = tr[hierarchy].copy()
+    y_va = va[hierarchy].copy()
+
+    embedding_model = load_embedding_model(E5_LARGE_INSTRUCT_CONFIG_PATH)
+
+    models = train_per_level(y_tr, embedding_model)
+
+    val_preds = predict_levels(models, X_va, embedding_model)
+    val_acc = eval_accuracy(y_va, val_preds)
+
+    t2 = test2_df.copy()
+    t2['processed_name'] = t2['translated_name'].apply(preprocess_keep_symbols)
+    X_t2 = t2['processed_name']
+    y_t2 = t2[['predicted_segment','predicted_family','predicted_class','predicted_brick']].copy()
+    y_t2.columns = hierarchy
+    p2 = predict_levels(models, X_t2, embedding_model)
+    test2_acc = eval_accuracy(y_t2, p2)
+
+    print("\nRESULTS (E5 Model + description)")
+    for l in hierarchy:
+        print(f"{l.capitalize()} | Val Acc: {val_acc[l]:.4f} | Test2 Acc: {test2_acc[l]:.4f}")
+
+if __name__ == "__main__":
+    main()

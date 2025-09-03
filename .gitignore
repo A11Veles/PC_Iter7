@@ -1,14 +1,10 @@
 .venv/*
 **/__pycache__/*
+data/*
 llama.cpp/*
 logs/*
 data/*
 config/.env
-data/usda_gpc_enhanced_corrected.csv
-data/usda_to_gpc_after.csv
-data/GPCMay25.xlsx
-data/gpc_representative_sample.csv
-data/gpc_representative_sample.csv
 matched/*
 comparisons/*
 test_dataset_actual_labels/*
