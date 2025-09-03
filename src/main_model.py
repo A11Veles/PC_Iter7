@@ -207,21 +207,11 @@ def run():
     val_metrics_all: Dict[str, Dict[str,float]] = {}
     test_metrics_all: Dict[str, Dict[str,float]] = {}
     for layer in hierarchy:
-
-        value_counts = df_all[layer].value_counts(dropna=True)
-        valid_values = value_counts[value_counts >= 10].index
-
-        df_all = df_all[df_all[layer].isin(valid_values)]
-
         tr = df_all[(df_all['split']=='train') & (~df_all[layer].isna())]
         if layer == 'brick':
             tr = tr[~tr['source'].isin(EXCLUDE_SOURCES_FOR_BRICK_TRAIN)]
         va = df_all[(df_all['split']=='val')   & (~df_all[layer].isna())]
         te = df_all[(df_all['split']=='test')  & (~df_all[layer].isna())]
-        te.to_csv("test.csv")
-
-        print(df_all[layer].value_counts(dropna=True).to_string())
-        print(df_all[layer].nunique())
 
         print(f"\n[{layer.upper()}] Train/Val/Test sizes (rows): {len(tr):,} / {len(va):,} / {len(te):,}")
 
