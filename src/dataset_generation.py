@@ -6,7 +6,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from tqdm import tqdm
 
-API_KEY = "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"
+API_KEY = "api key"
 MODEL_NAME = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
