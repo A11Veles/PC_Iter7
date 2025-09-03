@@ -1,4 +1,4 @@
-# Multilingual Product Classification System -- Iter 7
+# Multilingual Product Classification System -- Iter 8
 Automated product classification system using multilingual embeddings and semantic similarity for Arabic and English product names.
 
 ## Overview
@@ -178,3 +178,4 @@ The system automatically calculates:
 - Batch processing sizes configurable for large datasets
 - Vector similarity thresholds adjustable
 - Memory optimization settings for large embedding tables
+
