@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.svm import LinearSVC
-
+from constants import JIO_MART_DATASET_MAPPED
 warnings.filterwarnings('ignore')
 
 hierarchy = ['segment','family','class','brick']
@@ -69,10 +69,10 @@ def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
         return pd.DataFrame(columns=["product_name","description","segment","family","class","brick","source"])
     product_candidates = ["product_name","name","translated_name","item_name","title","item","product"]
     desc_candidates = ["description","desc","details"]
-    segment_candidates = ["segment","segmenttitle","segment_title","predicted_segment"]
-    family_candidates  = ["family","familytitle","family_title","predicted_family"]
-    class_candidates   = ["class","classtitle","class_title","predicted_class","categoryclass"]
-    brick_candidates   = ["brick","bricktitle","brick_title","predicted_brick","gpc_brick"]
+    segment_candidates = ["segment","segmenttitle","segment_title","predicted_segment", "Segment"]
+    family_candidates  = ["family","familytitle","family_title","predicted_family", "Family"]
+    class_candidates   = ["class","classtitle","class_title","predicted_class","categoryclass", "Class"]
+    brick_candidates   = ["brick","bricktitle","brick_title","predicted_brick","gpc_brick", "Brick"]
     pcol = find_col(df, product_candidates)
     dcol = find_col(df, desc_candidates)
     scol = find_col(df, segment_candidates)
@@ -154,12 +154,14 @@ def combine_all():
     df_corr = standardize_df(read_csv_flex(FILE_CORRECT), "CORRECTLY_MATCHED")
     df_prod = standardize_df(read_csv_flex(FILE_PRODUCT_MAP), "PRODUCT_GPC_MAPPING")
     df_vali = standardize_df(read_csv_flex(FILE_VALIDATED), "VALIDATED_TEST")
+    df_jio_mart = standardize_df(read_csv_flex(JIO_MART_DATASET_MAPPED), "JIO_MART")
     print("Loaded rows:")
     print(f"  MWPD_FULL                 : {len(df_mwpd):6d}")
     print(f"  correctly_matched_mapped  : {len(df_corr):6d}")
     print(f"  product_gpc_mapping       : {len(df_prod):6d}")
     print(f"  validated_actually_labeled: {len(df_vali):6d}")
-    df_all = pd.concat([df_mwpd, df_corr, df_prod, df_vali], axis=0, ignore_index=True)
+    print(f"  Jio_Mart Dataset: {len(df_jio_mart):6d}")
+    df_all = pd.concat([df_mwpd, df_corr, df_prod, df_vali, df_jio_mart], axis=0, ignore_index=True)
     df_all['text'] = df_all['product_name'].map(preprocess_keep_symbols)
     df_all = df_all[~df_all['text'].isna() & (df_all['text'].str.strip()!='')]
     for col in hierarchy:
@@ -191,6 +193,7 @@ def split_by_key(df_all: pd.DataFrame, seed=RANDOM_SEED) -> pd.DataFrame:
     assert train_keys.isdisjoint(val_keys) and train_keys.isdisjoint(test_keys) and val_keys.isdisjoint(test_keys)
     return df_all
 
+    
 def run():
     df_all = combine_all()
     df_all = split_by_key(df_all, seed=RANDOM_SEED)
@@ -204,18 +207,28 @@ def run():
     val_metrics_all: Dict[str, Dict[str,float]] = {}
     test_metrics_all: Dict[str, Dict[str,float]] = {}
     for layer in hierarchy:
-        tr = df_all[df_all['split']=='train']
+
+        value_counts = df_all[layer].value_counts(dropna=True)
+        valid_values = value_counts[value_counts >= 10].index
+
+        df_all = df_all[df_all[layer].isin(valid_values)]
+
+        tr = df_all[(df_all['split']=='train') & (~df_all[layer].isna())]
         if layer == 'brick':
             tr = tr[~tr['source'].isin(EXCLUDE_SOURCES_FOR_BRICK_TRAIN)]
-        va = df_all[df_all['split']=='val']
-        te = df_all[df_all['split']=='test']
-        tr = tr[~tr[layer].isna()]
-        va = va[~va[layer].isna()]
-        te = te[~te[layer].isna()]
+        va = df_all[(df_all['split']=='val')   & (~df_all[layer].isna())]
+        te = df_all[(df_all['split']=='test')  & (~df_all[layer].isna())]
+        te.to_csv("test.csv")
+
+        print(df_all[layer].value_counts(dropna=True).to_string())
+        print(df_all[layer].nunique())
+
         print(f"\n[{layer.upper()}] Train/Val/Test sizes (rows): {len(tr):,} / {len(va):,} / {len(te):,}")
+
         X_tr = vec.transform(tr['text'])
         X_va = vec.transform(va['text'])
         X_te = vec.transform(te['text'])
+
         model, le = train_single_level(X_tr, tr[layer])
         models[layer] = model
         encoders[layer] = le
@@ -225,8 +238,8 @@ def run():
         test_metrics = eval_metrics(te[layer], y_te_pred)
         val_metrics_all[layer] = val_metrics
         test_metrics_all[layer] = test_metrics
-        print(f"  Val  | n={val_metrics['n']:5d} | Acc={val_metrics['accuracy']:.4f} | F1_macro={val_metrics['f1_macro']:.4f} | F1_weighted={val_metrics['f1_weighted']:.4f}")
-        print(f"  Test | n={test_metrics['n']:5d} | Acc={test_metrics['accuracy']:.4f} | F1_macro={test_metrics['f1_macro']:.4f} | F1_weighted={test_metrics['f1_weighted']:.4f}")
+        print(f"  Val  | n={val_metrics['n']:5d} | Acc={val_metrics['accuracy']:.4f}  | F1_weighted={val_metrics['f1_weighted']:.4f}")
+        print(f"  Test | n={test_metrics['n']:5d} | Acc={test_metrics['accuracy']:.4f} | F1_weighted={test_metrics['f1_weighted']:.4f}")
     def avg(metrics: Dict[str, Dict[str,float]]):
         acc = np.mean([metrics[l]['accuracy'] for l in hierarchy])
         f1m = np.mean([metrics[l]['f1_macro'] for l in hierarchy])
@@ -235,8 +248,8 @@ def run():
     v_acc, v_f1m, v_f1w = avg(val_metrics_all)
     t_acc, t_f1m, t_f1w = avg(test_metrics_all)
     print("\nAverage metrics across layers:")
-    print(f"  Validation | Acc={v_acc:.4f} | F1_macro={v_f1m:.4f} | F1_weighted={v_f1w:.4f}")
-    print(f"  Test       | Acc={t_acc:.4f} | F1_macro={t_f1m:.4f} | F1_weighted={t_f1w:.4f}")
+    print(f"  Validation | Acc={v_acc:.4f} | F1_weighted={v_f1w:.4f}")
+    print(f"  Test       | Acc={t_acc:.4f} | F1_weighted={t_f1w:.4f}")
     te_full = df_all[df_all['split']=='test'].copy().dropna(subset=hierarchy)
     if len(te_full):
         X_te_full = vec.transform(te_full['text'])

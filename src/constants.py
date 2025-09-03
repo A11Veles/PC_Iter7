@@ -43,6 +43,10 @@ JIO_MART_DATASET_MAPPING = DATA_PATH / "jio_mart.json"
 
 JIO_MART_DATASET_MAPPED = DATA_PATH / "jio_mart_mapped.csv"
 
+BIG_BASKET_DATASET = DATA_PATH / "BigBasket Products.csv"
+
+FLIP_KART_DATASET = DATA_PATH / "flipkart_com-ecommerce_sample.csv"
+
 TRAIN_VAL_DATA_PATH = DATA_PATH / "train_val.csv"
 
 TRAIN_CLEANED_DATA_PATH = DATA_PATH / "train_cleaned.csv"
