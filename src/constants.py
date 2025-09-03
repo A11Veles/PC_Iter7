@@ -23,9 +23,35 @@ PROMPT_PATH = BASE_DIR / "prompt.txt"
 
 GPC_PATH = DATA_PATH / "GPCMay25.xlsx"
 
+JOINED_PRODUCTS_DATASET = DATA_PATH / "joined_products_dataset.csv"
+
+JOINED_CLASSES_DATASET = DATA_PATH / "joined_classes_dataset.csv"
+
+MANUALLY_LABELLED_DATASET = DATA_PATH / "validated_actually_labeled_test_dataset.csv"
+
+MANUALLY_LABELLED_DATASET_2 = DATA_PATH / "validated_actually_labeled_test_dataset_2.csv"
+
+SHOPMAINA_DATASET = DATA_PATH / "shopmania.csv"
+
+SKROUTZ_DATASET = DATA_PATH / "skroutz_aggregate.csv"
+
+PRICE_RUNNER_DATASET = DATA_PATH / "pricerunner_aggregate.csv"
+
+JIO_MART_DATASET = DATA_PATH / "jio_mart_items.csv"
+
+JIO_MART_DATASET_MAPPING = DATA_PATH / "jio_mart.json"
+
+JIO_MART_DATASET_MAPPED = DATA_PATH / "jio_mart_mapped.csv"
+
+BIG_BASKET_DATASET = DATA_PATH / "BigBasket Products.csv"
+
+FLIP_KART_DATASET = DATA_PATH / "flipkart_com-ecommerce_sample.csv"
+
 TRAIN_VAL_DATA_PATH = DATA_PATH / "train_val.csv"
 
 TRAIN_CLEANED_DATA_PATH = DATA_PATH / "train_cleaned.csv"
+
+TRANSLATED_TEST_DATASET = DATA_PATH / "translated_test_dataset.csv"
 
 VALIDATION_DATA_PATH = DATA_PATH / "validation.csv"
 
@@ -40,6 +66,22 @@ CLEANED_TRAIN_DATA_PATH = DATA_PATH / "cleaned_train.csv"
 CLEANED_FULL_DATASET_DATA_PATH = DATA_PATH / "cleaned_full_dataset.csv"
 
 GPC_PATH = DATA_PATH / "GPCMay25.xlsx"
+
+MWPD_DATA_SET_TRAIN = DATA_PATH / "train.json"
+
+MWPD_DATA_SET_VAL = DATA_PATH / "validation.json"
+
+MWPD_DATA_SET_TEST = DATA_PATH / "task2_testset_with_labels.json"
+
+MWPD_FULL_DATASET = DATA_PATH / "MWPD_FULL.csv"
+
+USDA_TO_CPG = DATA_PATH / "correctly_matched_mapped_gpc.csv"
+
+EXTRA_FOOD_DATA = DATA_PATH / "product_gpc_mapping.csv"
+
+MWPD_FULL_DATASET_COMBINED = DATA_PATH / "combined_data.csv"
+
+MWPD_FULL_DATASET_COMBINED_CLEANED = DATA_PATH / "combined_data_claned.csv"
 
 CLEANED_GPC_PATH = DATA_PATH / "cleaned_gpc.csv"
 
