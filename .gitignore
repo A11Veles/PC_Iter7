@@ -2,6 +2,7 @@
 **/__pycache__/*
 llama.cpp/*
 logs/*
+data/*
 config/.env
 data/usda_gpc_enhanced_corrected.csv
 data/usda_to_gpc_after.csv
