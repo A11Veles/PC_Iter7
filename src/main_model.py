@@ -55,6 +55,15 @@ def read_csv_flex(path: str) -> pd.DataFrame:
             continue
     return pd.read_csv(path, engine="python")
 
+def standardize_label(x):
+    if pd.isna(x): return np.nan
+    s = str(x).lower()
+    s = re.sub(r'[0-9]+', ' ', s)
+    s = re.sub(r'[^\w\s]', ' ', s)
+    s = re.sub(r'[_\-\/&]+', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s if s else np.nan
+
 def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["product_name","description","segment","family","class","brick","source"])
@@ -83,6 +92,8 @@ def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
     for col in ['product_name','description','segment','family','class','brick']:
         out[col] = out[col].astype(str).map(lambda x: re.sub(r"\s+"," ",x).strip() if isinstance(x,str) else x)
         out[col] = out[col].replace("", np.nan).replace("nan", np.nan)
+    for col in ['segment','family','class','brick']:
+        out[col] = out[col].map(standardize_label)
     out['source'] = source_name
     out = out[~out['product_name'].isna() & (out['product_name'].str.strip()!="")].reset_index(drop=True)
     return out
@@ -158,6 +169,7 @@ def combine_all():
     df_all['dedup_key'] = df_all['text'].map(make_dedup_key)
     df_all = df_all.drop_duplicates(subset=['text','segment','family','class','brick'], keep='first')
     after = len(df_all)
+    df_all.to_csv("all_data_0.85.csv")
     print(f"\nCombined rows before dedup: {before:,} | after dedup: {after:,}")
     return df_all.reset_index(drop=True)
 
