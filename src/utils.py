@@ -3,13 +3,31 @@ import torch.nn.functional as F
 import pandas as pd
 import chardet
 import unicodedata
-
+from typing import List, Optional, Dict
+import pandas as pd
+import numpy as np
+import re, warnings, os
+from typing import List, Optional, Dict
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import f1_score, accuracy_score
+from sklearn.svm import LinearSVC
+warnings.filterwarnings('ignore')
+from teradataml import *
+from teradataml.dataframe.copy_to import copy_to_sql
 import re
 import json
 from typing import List
 
+FILE_MWPD = 'data/MWPD_FULL.csv'
+FILE_CORRECT = 'data/correctly_matched_mapped_gpc.csv'
+FILE_PRODUCT_MAP = 'data/product_gpc_mapping.csv'
+FILE_VALIDATED = 'data/validated_actually_labeled_test_dataset.csv'
 
-from constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH
+hierarchy = ['segment','family','class','brick']
+
+
+from constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH, JIO_MART_DATASET_MAPPED
 from modules.models import (
     SentenceEmbeddingModel, 
     SentenceEmbeddingConfig,
@@ -213,3 +231,109 @@ def unicode_clean(s):
     s = unicodedata.normalize('NFKC', s)
     s = ''.join(c for c in s if unicodedata.category(c)[0] != 'C') 
     return s.strip()
+
+def preprocess_keep_symbols(text):
+    if pd.isna(text): return ""
+    text = str(text).lower()
+    text = re.sub(r'[^a-z0-9\s\+\-/\.]', ' ', text)
+    return ' '.join(text.split())
+
+def normalize_colkey(col: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", col.strip().lower()) if isinstance(col, str) else ""
+
+def find_col(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
+    norm_map = {normalize_colkey(c): c for c in df.columns}
+    for cand in candidates:
+        key = normalize_colkey(cand)
+        if key in norm_map:
+            return norm_map[key]
+        for k, orig in norm_map.items():
+            if key and key in k:
+                return orig
+    return None
+
+def read_csv_flex(path: str) -> pd.DataFrame:
+    if not os.path.exists(path):
+        print(f"[WARN] File not found: {path}")
+        return pd.DataFrame()
+    for enc in ["utf-8", "utf-8-sig", "latin-1"]:
+        try:
+            return pd.read_csv(path, encoding=enc)
+        except Exception:
+            continue
+    return pd.read_csv(path, engine="python")
+
+def standardize_label(x):
+    if pd.isna(x): return np.nan
+    s = str(x).lower()
+    s = re.sub(r'[0-9]+', ' ', s)
+    s = re.sub(r'[^\w\s]', ' ', s)
+    s = re.sub(r'[_\-\/&]+', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s if s else np.nan
+
+def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["product_name","description","segment","family","class","brick","source"])
+    product_candidates = ["product_name","name","translated_name","item_name","title","item","product"]
+    desc_candidates = ["description","desc","details"]
+    segment_candidates = ["segment","segmenttitle","segment_title","predicted_segment", "Segment", "SegmentTitle"]
+    family_candidates  = ["family","familytitle","family_title","predicted_family", "Family", "FamilyTitle"]
+    class_candidates   = ["class","classtitle","class_title","predicted_class","categoryclass", "Class", "ClassTitle"]
+    brick_candidates   = ["brick","bricktitle","brick_title","predicted_brick","gpc_brick", "Brick", "BrickTitle"]
+    pcol = find_col(df, product_candidates)
+    dcol = find_col(df, desc_candidates)
+    scol = find_col(df, segment_candidates)
+    fcol = find_col(df, family_candidates)
+    ccol = find_col(df, class_candidates)
+    bcol = find_col(df, brick_candidates)
+    out = pd.DataFrame()
+    if pcol:
+        out['product_name'] = df[pcol].astype(str)
+    else:
+        out['product_name'] = np.nan
+    out['description'] = df[dcol].astype(str) if dcol else np.nan
+    out['segment'] = df[scol].astype(str) if scol is not None else pd.Series([np.nan]*len(df))
+    out['family']  = df[fcol].astype(str) if fcol is not None else pd.Series([np.nan]*len(df))
+    out['class']   = df[ccol].astype(str) if ccol else np.nan
+    out['brick']   = df[bcol].astype(str) if bcol else np.nan
+    for col in ['product_name','description','segment','family','class','brick']:
+        out[col] = out[col].astype(str).map(lambda x: re.sub(r"\s+"," ",x).strip() if isinstance(x,str) else x)
+        out[col] = out[col].replace("", np.nan).replace("nan", np.nan)
+    for col in ['segment','family','class','brick']:
+        out[col] = out[col].map(standardize_label)
+    out = out.dropna(subset=["segment"])
+    out['source'] = source_name
+    out = out[~out['product_name'].isna() & (out['product_name'].str.strip()!="")].reset_index(drop=True)
+    return out
+
+
+def make_dedup_key(s: str) -> str:
+    s = (s or "").lower()
+    s = re.sub(r"[\W_]+", " ", s)
+    s = re.sub(r"\s+"," ", s).strip()
+    return s
+
+def combine_all():
+    df_mwpd = standardize_df(read_csv_flex(FILE_MWPD), "MWPD_FULL")
+    df_corr = standardize_df(read_csv_flex(FILE_CORRECT), "CORRECTLY_MATCHED")
+    df_prod = standardize_df(read_csv_flex(FILE_PRODUCT_MAP), "PRODUCT_GPC_MAPPING")
+    df_vali = standardize_df(read_csv_flex(FILE_VALIDATED), "VALIDATED_TEST")
+    df_jio_mart = standardize_df(read_csv_flex(JIO_MART_DATASET_MAPPED), "JIO_MART")
+    print("Loaded rows:")
+    print(f"  MWPD_FULL                 : {len(df_mwpd):6d}")
+    print(f"  correctly_matched_mapped  : {len(df_corr):6d}")
+    print(f"  product_gpc_mapping       : {len(df_prod):6d}")
+    print(f"  validated_actually_labeled: {len(df_vali):6d}")
+    print(f"  Jio_Mart Dataset: {len(df_jio_mart):6d}")
+    df_all = pd.concat([df_mwpd, df_corr, df_prod, df_vali, df_jio_mart], axis=0, ignore_index=True)
+    df_all['text'] = df_all['product_name'].map(preprocess_keep_symbols)
+    df_all = df_all[~df_all['text'].isna() & (df_all['text'].str.strip()!='')]
+    for col in hierarchy:
+        df_all[col] = df_all[col].map(lambda x: x.strip() if isinstance(x,str) else x)
+        df_all[col] = df_all[col].replace("", np.nan).replace("nan", np.nan)
+    df_all['dedup_key'] = df_all['text'].map(make_dedup_key)
+    #df_all = df_all.drop_duplicates(subset=['text','segment','family','class','brick'], keep='first')
+    #print(df_all.groupby("source")[["segment","family"]].apply(lambda x: x.isna().mean()))
+    df_all.to_csv("all_data_0.85.csv")
+    return df_all.reset_index(drop=True)

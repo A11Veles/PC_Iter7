@@ -4,18 +4,20 @@ import numpy as np
 import re, warnings, os
 from typing import List, Optional, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder as SklearnLabelEncoder
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.svm import LinearSVC
-from constants import JIO_MART_DATASET_MAPPED
+from constants import JIO_MART_DATASET_MAPPED, TD_DB
 warnings.filterwarnings('ignore')
+from teradataml import *
+from teradataml.dataframe.copy_to import copy_to_sql
 
+from modules.db import TeradataDatabase
 hierarchy = ['segment','family','class','brick']
 
-FILE_MWPD = 'data/MWPD_FULL.csv'
-FILE_CORRECT = 'data/correctly_matched_mapped_gpc.csv'
-FILE_PRODUCT_MAP = 'data/product_gpc_mapping.csv'
-FILE_VALIDATED = 'data/validated_actually_labeled_test_dataset.csv'
+td_db = TeradataDatabase() 
+td_db.connect()
+
 
 TRAIN_FRAC = 0.70
 VAL_FRAC = 0.20
@@ -23,86 +25,6 @@ TEST_FRAC = 0.10
 RANDOM_SEED = 42
 
 EXCLUDE_SOURCES_FOR_BRICK_TRAIN = {'MWPD_FULL'}
-
-def preprocess_keep_symbols(text):
-    if pd.isna(text): return ""
-    text = str(text).lower()
-    text = re.sub(r'[^a-z0-9\s\+\-/\.]', ' ', text)
-    return ' '.join(text.split())
-
-def normalize_colkey(col: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", col.strip().lower()) if isinstance(col, str) else ""
-
-def find_col(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
-    norm_map = {normalize_colkey(c): c for c in df.columns}
-    for cand in candidates:
-        key = normalize_colkey(cand)
-        if key in norm_map:
-            return norm_map[key]
-        for k, orig in norm_map.items():
-            if key and key in k:
-                return orig
-    return None
-
-def read_csv_flex(path: str) -> pd.DataFrame:
-    if not os.path.exists(path):
-        print(f"[WARN] File not found: {path}")
-        return pd.DataFrame()
-    for enc in ["utf-8", "utf-8-sig", "latin-1"]:
-        try:
-            return pd.read_csv(path, encoding=enc)
-        except Exception:
-            continue
-    return pd.read_csv(path, engine="python")
-
-def standardize_label(x):
-    if pd.isna(x): return np.nan
-    s = str(x).lower()
-    s = re.sub(r'[0-9]+', ' ', s)
-    s = re.sub(r'[^\w\s]', ' ', s)
-    s = re.sub(r'[_\-\/&]+', ' ', s)
-    s = re.sub(r'\s+', ' ', s).strip()
-    return s if s else np.nan
-
-def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame(columns=["product_name","description","segment","family","class","brick","source"])
-    product_candidates = ["product_name","name","translated_name","item_name","title","item","product"]
-    desc_candidates = ["description","desc","details"]
-    segment_candidates = ["segment","segmenttitle","segment_title","predicted_segment", "Segment"]
-    family_candidates  = ["family","familytitle","family_title","predicted_family", "Family"]
-    class_candidates   = ["class","classtitle","class_title","predicted_class","categoryclass", "Class"]
-    brick_candidates   = ["brick","bricktitle","brick_title","predicted_brick","gpc_brick", "Brick"]
-    pcol = find_col(df, product_candidates)
-    dcol = find_col(df, desc_candidates)
-    scol = find_col(df, segment_candidates)
-    fcol = find_col(df, family_candidates)
-    ccol = find_col(df, class_candidates)
-    bcol = find_col(df, brick_candidates)
-    out = pd.DataFrame()
-    if pcol:
-        out['product_name'] = df[pcol].astype(str)
-    else:
-        out['product_name'] = np.nan
-    out['description'] = df[dcol].astype(str) if dcol else np.nan
-    out['segment'] = df[scol].astype(str) if scol else np.nan
-    out['family']  = df[fcol].astype(str) if fcol else np.nan
-    out['class']   = df[ccol].astype(str) if ccol else np.nan
-    out['brick']   = df[bcol].astype(str) if bcol else np.nan
-    for col in ['product_name','description','segment','family','class','brick']:
-        out[col] = out[col].astype(str).map(lambda x: re.sub(r"\s+"," ",x).strip() if isinstance(x,str) else x)
-        out[col] = out[col].replace("", np.nan).replace("nan", np.nan)
-    for col in ['segment','family','class','brick']:
-        out[col] = out[col].map(standardize_label)
-    out['source'] = source_name
-    out = out[~out['product_name'].isna() & (out['product_name'].str.strip()!="")].reset_index(drop=True)
-    return out
-
-def make_dedup_key(s: str) -> str:
-    s = (s or "").lower()
-    s = re.sub(r"[\W_]+", " ", s)
-    s = re.sub(r"\s+"," ", s).strip()
-    return s
 
 def vec_builder():
     return TfidfVectorizer(
@@ -119,7 +41,7 @@ def model_builder():
     return LinearSVC(C=1.0, class_weight='balanced')
 
 def train_single_level(X_train, y_series):
-    le = LabelEncoder()
+    le = SklearnLabelEncoder()
     y = y_series.astype(str).fillna("NA_LBL")
     y_enc = le.fit_transform(y)
     if len(np.unique(y_enc)) < 2:
@@ -149,31 +71,6 @@ def eval_metrics(y_true, y_pred) -> Dict[str, float]:
         'n': len(yt)
     }
 
-def combine_all():
-    df_mwpd = standardize_df(read_csv_flex(FILE_MWPD), "MWPD_FULL")
-    df_corr = standardize_df(read_csv_flex(FILE_CORRECT), "CORRECTLY_MATCHED")
-    df_prod = standardize_df(read_csv_flex(FILE_PRODUCT_MAP), "PRODUCT_GPC_MAPPING")
-    df_vali = standardize_df(read_csv_flex(FILE_VALIDATED), "VALIDATED_TEST")
-    df_jio_mart = standardize_df(read_csv_flex(JIO_MART_DATASET_MAPPED), "JIO_MART")
-    print("Loaded rows:")
-    print(f"  MWPD_FULL                 : {len(df_mwpd):6d}")
-    print(f"  correctly_matched_mapped  : {len(df_corr):6d}")
-    print(f"  product_gpc_mapping       : {len(df_prod):6d}")
-    print(f"  validated_actually_labeled: {len(df_vali):6d}")
-    print(f"  Jio_Mart Dataset: {len(df_jio_mart):6d}")
-    df_all = pd.concat([df_mwpd, df_corr, df_prod, df_vali, df_jio_mart], axis=0, ignore_index=True)
-    df_all['text'] = df_all['product_name'].map(preprocess_keep_symbols)
-    df_all = df_all[~df_all['text'].isna() & (df_all['text'].str.strip()!='')]
-    for col in hierarchy:
-        df_all[col] = df_all[col].map(lambda x: x.strip() if isinstance(x,str) else x)
-        df_all[col] = df_all[col].replace("", np.nan).replace("nan", np.nan)
-    before = len(df_all)
-    df_all['dedup_key'] = df_all['text'].map(make_dedup_key)
-    df_all = df_all.drop_duplicates(subset=['text','segment','family','class','brick'], keep='first')
-    after = len(df_all)
-    df_all.to_csv("all_data_0.85.csv")
-    print(f"\nCombined rows before dedup: {before:,} | after dedup: {after:,}")
-    return df_all.reset_index(drop=True)
 
 def split_by_key(df_all: pd.DataFrame, seed=RANDOM_SEED) -> pd.DataFrame:
     keys = df_all['dedup_key'].unique().tolist()
@@ -193,9 +90,36 @@ def split_by_key(df_all: pd.DataFrame, seed=RANDOM_SEED) -> pd.DataFrame:
     assert train_keys.isdisjoint(val_keys) and train_keys.isdisjoint(test_keys) and val_keys.isdisjoint(test_keys)
     return df_all
 
+
+def clean_products_in_db(): 
+
+    tdf = DataFrame.from_table("full_dataset", schema_name=TD_DB)
+    
+    cleaning_query = """
+    UPDATE demo_user.full_dataset
+    SET product_name =
+                    TRIM(
+                        REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(product_name, '[[:digit:]]+', ''), 
+                            '[-_/\\|]', ''),                              
+                        '[[:punct:]]', ''                              
+                        )
+                    )
+                    ;
+    """
+
+    td_db.execute_query(cleaning_query)
+    
+def load_data_set_from_db():
+    clean_products_in_db()
+    tdf = td_db.execute_query("Select * from demo_user.full_dataset")
+    df = pd.DataFrame(tdf)
+    return df
+
     
 def run():
-    df_all = combine_all()
+    df_all = load_data_set_from_db()
     df_all = split_by_key(df_all, seed=RANDOM_SEED)
     print("\nSplit sizes (rows):")
     print(df_all['split'].value_counts(dropna=False).to_string())
@@ -203,7 +127,7 @@ def run():
     X_train_texts = df_all.loc[df_all['split']=='train','text'].tolist()
     vec.fit(X_train_texts)
     models: Dict[str, tuple] = {}
-    encoders: Dict[str, LabelEncoder] = {}
+    encoders: Dict[str, SklearnLabelEncoder] = {}
     val_metrics_all: Dict[str, Dict[str,float]] = {}
     test_metrics_all: Dict[str, Dict[str,float]] = {}
     for layer in hierarchy:
