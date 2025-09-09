@@ -19,6 +19,8 @@ BASE_DIR = Path(__file__).parents[1]
 
 DATA_PATH = BASE_DIR / "data"
 
+MODEL_PATH = BASE_DIR / "modules"
+
 PROMPT_PATH = BASE_DIR / "prompt.txt"
 
 GPC_PATH = DATA_PATH / "GPCMay25.xlsx"
@@ -42,6 +44,8 @@ JIO_MART_DATASET = DATA_PATH / "jio_mart_items.csv"
 JIO_MART_DATASET_MAPPING = DATA_PATH / "jio_mart.json"
 
 JIO_MART_DATASET_MAPPED = DATA_PATH / "jio_mart_mapped.csv"
+
+SEUODI_DATASET_MAPPED = DATA_PATH / "seoudi_products_en.csv"
 
 BIG_BASKET_DATASET = DATA_PATH / "BigBasket Products.csv"
 

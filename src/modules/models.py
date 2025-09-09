@@ -20,6 +20,8 @@ import numpy as np
 import requests
 import time
 import joblib
+import os
+from src.constants import MODEL_PATH
 
 @dataclass
 class OpusTranslationModelConfig:
@@ -892,9 +894,9 @@ class WeightedLogisticRegressionClassifier:
     def get_model(self):
         return self.model
     
-
 @dataclass
 class TfidfClassifierConfig:
+    model_name: str = "tfidf_model.joblib"
     analyzer: str = "char_wb"
     ngram_range: tuple = (3, 5)
     min_df: int = 2
@@ -907,10 +909,10 @@ class TfidfClassifierConfig:
     stop_words: Optional[set] = None
     food_weight: float = 5.0
 
-
 class TfidfClassifier:
 
     def __init__(self, config: Optional[TfidfClassifierConfig]):
+        self.model_name = config.model_name
         self.vectorizer = TfidfVectorizer(
             analyzer=config.analyzer,
             ngram_range=config.ngram_range,
@@ -939,18 +941,21 @@ class TfidfClassifier:
     def predict(self, x):
         return self.clf.predict(x)
     
-    def predict_topk(self, product_name, k=3):
+    def save(self) -> None:
+        if self.clf is None:
+            raise ValueError("You need to fit the model first.")
+        if not os.path.exists(MODEL_PATH):
+            os.makedirs(MODEL_PATH, exist_ok=True)
 
-        probabilities = self.clf.predict_proba([product_name])[0]
+        model_path = MODEL_PATH / self.model_name
+        joblib.dump(self.clf, model_path)
 
-        classes = self.clf.classes_
+    def load(self) -> None:
+        if self.clf is not None:
+            return
 
-        prob_class_pairs = list(zip(probabilities, classes))
-
-        prob_class_pairs.sort(key=lambda x: x[0], reverse=True)
-
-        return [class_label for prob, class_label in prob_class_pairs[:k]]
-
+        model_path = MODEL_PATH / self.model_name
+        self.clf = joblib.load(model_path)
 
 @dataclass
 class DummyModelConfig:
