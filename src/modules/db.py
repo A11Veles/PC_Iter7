@@ -5,7 +5,7 @@ from teradataml import execute_sql
 import os
 from typing import Any, List, Dict
 
-from src.constants import ENV_PATH
+from constants import ENV_PATH
 
 class TeradataDatabase:
 

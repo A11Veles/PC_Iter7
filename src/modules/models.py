@@ -21,7 +21,7 @@ import requests
 import time
 import joblib
 import os
-from src.constants import MODEL_PATH
+from constants import MODEL_PATH
 
 @dataclass
 class OpusTranslationModelConfig:

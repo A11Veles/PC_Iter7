@@ -27,8 +27,8 @@ FILE_VALIDATED = 'data/validated_actually_labeled_test_dataset.csv'
 hierarchy = ['segment','family','class','brick']
 
 
-from src.constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH, JIO_MART_DATASET_MAPPED
-from src.modules.models import (
+from constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH, JIO_MART_DATASET_MAPPED
+from modules.models import (
     SentenceEmbeddingModel, 
     SentenceEmbeddingConfig,
     OpusTranslationModel,
