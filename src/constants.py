@@ -17,13 +17,18 @@ RANDOM_STATE = 42
 
 BASE_DIR = Path(__file__).parents[1]
 
+
 DATA_PATH = BASE_DIR / "data"
 
 MODEL_PATH = BASE_DIR / "modules"
 
 PROMPT_PATH = BASE_DIR / "prompt.txt"
 
+MAPPED_BRAND_DB = DATA_PATH / "brands_mapped.json"
+
 GPC_PATH = DATA_PATH / "GPCMay25.xlsx"
+
+BRAND_DB = DATA_PATH / "converted_brand_data.csv"
 
 JOINED_PRODUCTS_DATASET = DATA_PATH / "joined_products_dataset.csv"
 

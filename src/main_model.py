@@ -8,6 +8,7 @@ from sklearn.preprocessing import LabelEncoder as SklearnLabelEncoder
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.svm import LinearSVC
 from constants import JIO_MART_DATASET_MAPPED, TD_DB
+from utils import combine_all
 warnings.filterwarnings('ignore')
 from teradataml import *
 from teradataml.dataframe.copy_to import copy_to_sql
@@ -201,4 +202,4 @@ def run():
         print("\n[INFO] No complete test rows with all labels to export detailed predictions.")
 
 if __name__ == "__main__":
-    run()
+    combine_all()

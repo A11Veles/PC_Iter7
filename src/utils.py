@@ -19,13 +19,6 @@ import re
 import json
 from typing import List
 
-FILE_MWPD = 'data/MWPD_FULL.csv'
-FILE_CORRECT = 'data/correctly_matched_mapped_gpc.csv'
-FILE_PRODUCT_MAP = 'data/product_gpc_mapping.csv'
-FILE_VALIDATED = 'data/validated_actually_labeled_test_dataset.csv'
-
-hierarchy = ['segment','family','class','brick']
-
 
 from constants import ALL_STOPWORDS, ALL_BRANDS, GPC_PATH, PROMPT_PATH, JIO_MART_DATASET_MAPPED
 from modules.models import (
@@ -272,6 +265,16 @@ def standardize_label(x):
     s = re.sub(r'\s+', ' ', s).strip()
     return s if s else np.nan
 
+## IMPORTANT - FROM HERE UNTIL THE END
+
+FILE_MWPD = 'data/MWPD_FULL.csv'
+FILE_CORRECT = 'data/correctly_matched_mapped_gpc.csv'
+FILE_PRODUCT_MAP = 'data/product_gpc_mapping.csv'
+FILE_VALIDATED = 'data/validated_actually_labeled_test_dataset.csv'
+
+hierarchy = ['segment','family','class','brick']
+
+
 def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["product_name","description","segment","family","class","brick","source"])
@@ -298,10 +301,8 @@ def standardize_df(df: pd.DataFrame, source_name: str) -> pd.DataFrame:
     out['class']   = df[ccol].astype(str) if ccol else np.nan
     out['brick']   = df[bcol].astype(str) if bcol else np.nan
     for col in ['product_name','description','segment','family','class','brick']:
-        out[col] = out[col].astype(str).map(lambda x: re.sub(r"\s+"," ",x).strip() if isinstance(x,str) else x)
+        out[col] = out[col].astype(str).map(lambda x: re.sub(r"[\d_]+", "", x).strip() if isinstance(x,str) else x)
         out[col] = out[col].replace("", np.nan).replace("nan", np.nan)
-    for col in ['segment','family','class','brick']:
-        out[col] = out[col].map(standardize_label)
     out = out.dropna(subset=["segment"])
     out['source'] = source_name
     out = out[~out['product_name'].isna() & (out['product_name'].str.strip()!="")].reset_index(drop=True)
@@ -322,7 +323,7 @@ def combine_all():
     df_jio_mart = standardize_df(read_csv_flex(JIO_MART_DATASET_MAPPED), "JIO_MART")
     print("Loaded rows:")
     print(f"  MWPD_FULL                 : {len(df_mwpd):6d}")
-    print(f"  correctly_matched_mapped  : {len(df_corr):6d}")
+    print(f"  USA-Food_Dataset  : {len(df_corr):6d}")
     print(f"  product_gpc_mapping       : {len(df_prod):6d}")
     print(f"  validated_actually_labeled: {len(df_vali):6d}")
     print(f"  Jio_Mart Dataset: {len(df_jio_mart):6d}")
